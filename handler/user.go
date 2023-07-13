@@ -7,6 +7,7 @@ import (
 	"example/ecommerce/database/dbHelper"
 	"example/ecommerce/models"
 	"github.com/go-chi/chi"
+	"github.com/go-playground/validator/v10"
 	"github.com/golang-jwt/jwt"
 	"github.com/google/uuid"
 	"golang.org/x/crypto/bcrypt"
@@ -24,10 +25,14 @@ func RegisterHandler(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
-	if user.Password == "" || user.Email == "" {
+
+	validate := validator.New()
+	err = validate.Struct(user)
+	if err != nil {
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
+
 	isEmailExists, err := dbHelper.CheckEmail(database.Todo, user.Email)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
@@ -54,21 +59,21 @@ func RegisterHandler(w http.ResponseWriter, r *http.Request) {
 	userId, err := dbHelper.CreateUser(tx, user)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
-		_ = tx.Rollback()
+		tx.Rollback()
 		return
 	}
 
-	err = dbHelper.CreateUserRole(tx, userId, models.Role2)
+	err = dbHelper.CreateUserRole(tx, nil, userId, models.Role2)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
-		_ = tx.Rollback()
+		tx.Rollback()
 		return
 	}
 
 	err = dbHelper.CreateCart(tx, userId)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
-		_ = tx.Rollback()
+		tx.Rollback()
 		return
 	}
 
@@ -82,14 +87,14 @@ func RegisterHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func LoginHandler(w http.ResponseWriter, r *http.Request) {
-	var user models.Users
+	var user models.UserLogin
 	err := json.NewDecoder(r.Body).Decode(&user)
 	if err != nil {
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
 
-	userId, passwordDatabase, err := dbHelper.GetPassword(database.Todo, user.Email)
+	userId, passwordDatabase, err := dbHelper.GetIdPassword(database.Todo, user.Email)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			w.WriteHeader(http.StatusBadRequest)
@@ -404,7 +409,7 @@ func DeleteUserByAdminHandler(w http.ResponseWriter, r *http.Request) {
 	userIdString := chi.URLParam(r, "userId")
 	userId, err := uuid.Parse(userIdString)
 	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
+		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
 
@@ -475,10 +480,49 @@ func GetAllItemsHandler(w http.ResponseWriter, r *http.Request) {
 	name := r.URL.Query().Get("name")
 	items, err := dbHelper.GetAllItems(database.Todo, name)
 	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
+		if err == sql.ErrNoRows {
+			w.WriteHeader(http.StatusBadRequest)
+		} else {
+			w.WriteHeader(http.StatusInternalServerError)
+		}
 		return
 	}
 
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(items)
+}
+
+func AddUserRoleHandler(w http.ResponseWriter, r *http.Request) {
+	userIdString := chi.URLParam(r, "userId")
+	userId, err := uuid.Parse(userIdString)
+	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+
+	userRole := r.URL.Query().Get("role")
+	roles, err := dbHelper.GetUserRoles(database.Todo, userId)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			w.WriteHeader(http.StatusBadRequest)
+		} else {
+			w.WriteHeader(http.StatusInternalServerError)
+		}
+		return
+	}
+
+	for _, x := range roles {
+		if x == userRole {
+			w.WriteHeader(http.StatusConflict)
+			return
+		}
+	}
+
+	err = dbHelper.CreateUserRole(nil, database.Todo, userId, userRole)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusCreated)
 }
