@@ -6,17 +6,18 @@ import (
 	"github.com/sirupsen/logrus"
 	"log"
 	"net/http"
+	"os"
 )
 
 func main() {
 	if err := database.ConnectAndMigrate(
-		"localhost",
-		"5433",
-		"ecom",
-		"local",
-		"local",
+		os.Getenv("host"),
+		os.Getenv("port"),
+		os.Getenv("databaseName"),
+		os.Getenv("user"),
+		os.Getenv("password"),
 		database.SSLModeDisable); err != nil {
-		logrus.Panicf("Failed to initialize and migrate database with error: %+v", err)
+		logrus.Fatalf("Failed to initialize and migrate database with error: %+v", err)
 	}
 
 	r := server.SetUpRoutes()
