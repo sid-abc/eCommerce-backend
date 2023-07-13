@@ -36,10 +36,11 @@ func SetUpRoutes() *chi.Mux {
 			r.Get("/all-users", handler.GetAllUsersHandler)
 			r.Route("/users", func(r chi.Router) {
 				r.Delete("/{userId}/delete-user", handler.DeleteUserByAdminHandler)
+				r.Put("/{userId}/add-role", handler.AddUserRoleHandler)
 			})
+			r.Post("/upload-image", handler.UploadImageHandler)
 			r.Route("/items", func(r chi.Router) {
 				r.Post("/add-item", handler.CreateItemHandler)
-				r.Post("/{itemId}/upload-image", handler.UploadImageHandler)
 				r.Post("/{itemId}/add-image", handler.InsertImageHandler)
 				r.Delete("/{itemId}/delete-item", handler.DeleteItemHandler)
 			})

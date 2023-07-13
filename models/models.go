@@ -16,15 +16,20 @@ const (
 
 type Users struct {
 	UserId      uuid.UUID `db:"user_id"`
-	Name        string    `json:"name" db:"name"`
-	Email       string    `json:"email" db:"email"`
-	Password    string    `json:"password" db:"password"`
-	PhoneNumber int       `json:"phoneNumber" db:"phone_number"`
-	Address     string    `json:"address" db:"address"`
-	ZipCode     int       `json:"zipCode" db:"zip_code"`
-	Country     string    `json:"country" db:"country"`
+	Name        string    `json:"name" db:"name" validate:"required"`
+	Email       string    `json:"email" db:"email" validate:"required,email"`
+	Password    string    `json:"password" db:"password" validate:"required,min=6"`
+	PhoneNumber int       `json:"phoneNumber" db:"phone_number" validate:"required"`
+	Address     string    `json:"address" db:"address" validate:"required"`
+	ZipCode     int       `json:"zipCode" db:"zip_code" validate:"required"`
+	Country     string    `json:"country" db:"country" validate:"required"`
 	Archived    time.Time `db:"archived"`
 	RoleUser    string    `db:"role_user"`
+}
+
+type UserLogin struct {
+	Email    string `json:"email" db:"email"`
+	Password string `json:"password" db:"password"`
 }
 
 type UserRole struct {
@@ -54,6 +59,7 @@ type CartItem struct {
 	ItemId   uuid.UUID `json:"itemId" db:"item_id"`
 	Quantity int       `json:"quantity" db:"quantity"`
 }
+
 type CartItemDisplay struct {
 	ItemId      uuid.UUID `json:"itemId" db:"item_id"`
 	Name        string    `json:"name" db:"name"`
@@ -72,10 +78,10 @@ type Image struct {
 }
 
 type Upload struct {
-	UploadId uuid.UUID
-	Path     string `json:"path" db:"path"`
-	Name     string `json:"name" db:"name"`
-	Url      string `json:"url" db:"url"`
+	UploadId uuid.UUID `json:"uploadId"`
+	Path     string    `json:"path" db:"path"`
+	Name     string    `json:"name" db:"name"`
+	Url      string    `json:"url" db:"url"`
 }
 
 type Claims struct {

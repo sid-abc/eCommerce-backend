@@ -17,12 +17,17 @@ func CreateUser(tx *sqlx.Tx, user models.Users) (uuid.UUID, error) {
 	return userId, err
 }
 
-func CreateUserRole(tx *sqlx.Tx, userId uuid.UUID, role string) error {
+func CreateUserRole(tx *sqlx.Tx, db *sqlx.DB, userId uuid.UUID, role string) error {
 	SQL := `INSERT INTO user_role
             (role_user, user_id)
             VALUES ($1, $2)`
-	_, err := tx.Exec(SQL, role, userId)
-	return err
+	if db == nil {
+		_, err := tx.Exec(SQL, role, userId)
+		return err
+	} else {
+		_, err := db.Exec(SQL, role, userId)
+		return err
+	}
 }
 
 func CheckEmail(db *sqlx.DB, email string) (bool, error) {
@@ -34,7 +39,7 @@ func CheckEmail(db *sqlx.DB, email string) (bool, error) {
 	return isEmailExists, err
 }
 
-func GetPassword(db *sqlx.DB, email string) (uuid.UUID, string, error) {
+func GetIdPassword(db *sqlx.DB, email string) (uuid.UUID, string, error) {
 	SQL := `SELECT user_id, password
             FROM users
             WHERE email = $1`
