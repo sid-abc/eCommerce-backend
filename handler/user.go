@@ -6,12 +6,15 @@ import (
 	"example/ecommerce/database"
 	"example/ecommerce/database/dbHelper"
 	"example/ecommerce/models"
+	"example/ecommerce/utils"
+	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/service/s3"
+	"github.com/aws/aws-sdk-go/service/s3/s3manager"
 	"github.com/go-chi/chi"
 	"github.com/go-playground/validator/v10"
 	"github.com/golang-jwt/jwt"
 	"github.com/google/uuid"
 	"golang.org/x/crypto/bcrypt"
-	"io"
 	"net/http"
 	"os"
 	"time"
@@ -137,6 +140,13 @@ func CreateItemHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	validate := validator.New()
+	err = validate.Struct(item)
+	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+
 	err = dbHelper.CreateItem(database.Todo, item)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
@@ -191,7 +201,7 @@ func DeleteFromCartHandler(w http.ResponseWriter, r *http.Request) {
 	cartIdString := chi.URLParam(r, "cartId")
 	cartId, err := uuid.Parse(cartIdString)
 	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
+		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
 
@@ -339,22 +349,43 @@ func UploadImageHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer file.Close()
+
+	awsConfig := utils.AWSConfig{
+		AccessKeyID:     os.Getenv("AccessKeyID"),
+		AccessKeySecret: os.Getenv("AccessKeySecret"),
+		Region:          os.Getenv("Region"),
+		BucketName:      os.Getenv("BucketName"),
+	}
+
+	// creating aws session
+	sess := utils.CreateSession(awsConfig)
+
 	upload := models.Upload{}
 	upload.Name = handler.Filename + time.Now().String()
-	upload.Path = "./uploads/" + upload.Name
-	upload.Url = "https://dfstudio-d420.kxcdn.com/wordpress/wp-content/uploads/2019/06/digital_camera_photo-1080x675.jpg"
-	f, err := os.OpenFile(upload.Path, os.O_WRONLY|os.O_CREATE, 0666)
-	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		return
-	}
-	defer f.Close()
 
-	_, err = io.Copy(f, file)
+	uploader := s3manager.NewUploader(sess)
+	_, err = uploader.Upload(&s3manager.UploadInput{
+		Bucket: aws.String(awsConfig.BucketName),
+		Key:    aws.String(upload.Name),
+		Body:   file,
+	})
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
+
+	// creating s3 session
+	svc := s3.New(sess)
+	req, _ := svc.GetObjectRequest(&s3.GetObjectInput{
+		Bucket: aws.String(awsConfig.BucketName),
+		Key:    aws.String(upload.Name),
+	})
+	url, err := req.Presign(20 * time.Minute)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+	upload.Url = url
 	uploadId, err := dbHelper.InsertUpload(database.Todo, upload)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)

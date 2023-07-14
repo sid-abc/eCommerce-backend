@@ -40,11 +40,11 @@ type UserRole struct {
 
 type Item struct {
 	ItemId      uuid.UUID `db:"item_id"`
-	Name        string    `json:"name" db:"name"`
-	Description string    `json:"description" db:"description"`
+	Name        string    `json:"name" db:"name" validate:"required"`
+	Description string    `json:"description" db:"description" validate:"required"`
 	Features    string    `json:"features" db:"features"`
 	Price       int       `json:"price" db:"price"`
-	Type        string    `json:"type" db:"type"`
+	Type        string    `json:"type" db:"type" validate:"required"`
 	StockNo     int       `json:"stockNo" db:"stock_no"`
 	Photos      []byte    `json:"photos" db:"photos"`
 }
