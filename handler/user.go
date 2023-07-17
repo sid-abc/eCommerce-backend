@@ -17,6 +17,7 @@ import (
 	"golang.org/x/crypto/bcrypt"
 	"net/http"
 	"os"
+	"strconv"
 	"time"
 )
 
@@ -426,7 +427,18 @@ func InsertImageHandler(w http.ResponseWriter, r *http.Request) {
 
 // admin
 func GetAllUsersHandler(w http.ResponseWriter, r *http.Request) {
-	users, err := dbHelper.GetAllUsers(database.Todo)
+	pageNumber, _ := strconv.Atoi(r.URL.Query().Get("page"))
+	pageSize, _ := strconv.Atoi(r.URL.Query().Get("size"))
+
+	if pageNumber <= 0 {
+		pageNumber = 1
+	}
+	if pageSize <= 0 {
+		pageSize = 10
+	}
+
+	offset := (pageNumber - 1) * pageSize
+	users, err := dbHelper.GetAllUsers(database.Todo, pageSize, offset)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		return
@@ -509,7 +521,19 @@ func DeleteAccountHandler(w http.ResponseWriter, r *http.Request) {
 
 func GetAllItemsHandler(w http.ResponseWriter, r *http.Request) {
 	name := r.URL.Query().Get("name")
-	items, err := dbHelper.GetAllItems(database.Todo, name)
+	pageNumber, _ := strconv.Atoi(r.URL.Query().Get("page"))
+	pageSize, _ := strconv.Atoi(r.URL.Query().Get("size"))
+
+	if pageNumber <= 0 {
+		pageNumber = 1
+	}
+	if pageSize <= 0 {
+		pageSize = 10
+	}
+
+	offset := (pageNumber - 1) * pageSize
+
+	items, err := dbHelper.GetAllItems(database.Todo, name, pageSize, offset)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			w.WriteHeader(http.StatusBadRequest)

@@ -206,12 +206,14 @@ func InsertImage(db *sqlx.DB, image models.Image) error {
 	return err
 }
 
-func GetAllUsers(db *sqlx.DB) ([]models.Users, error) {
+func GetAllUsers(db *sqlx.DB, limit, offset int) ([]models.Users, error) {
 	SQL := `SELECT u.user_id, u.name, u.email, u.password, u.number AS phone_number, u.address, u.zip_code, u.country, r.role_user
             FROM users u INNER JOIN user_role r 
-            USING(user_id)`
+            USING(user_id)
+            LIMIT $1
+            OFFSET $2`
 	var users []models.Users
-	err := db.Select(&users, SQL)
+	err := db.Select(&users, SQL, limit, offset)
 	return users, err
 }
 
@@ -228,7 +230,7 @@ func GetItemById(db *sqlx.DB, itemId uuid.UUID) (models.Item, error) {
 	return item, err
 }
 
-func GetAllItems(db *sqlx.DB, name string) ([]models.Item, error) {
+func GetAllItems(db *sqlx.DB, name string, limit, offset int) ([]models.Item, error) {
 	search := "%" + name + "%"
 	SQL := `SELECT i.item_id, i.name, i.description, i.features, i.price, i.type, i.stock_no, array_agg(u.url) AS photos
 			FROM items i LEFT JOIN images p 
@@ -236,8 +238,10 @@ func GetAllItems(db *sqlx.DB, name string) ([]models.Item, error) {
 			LEFT JOIN uploads u
 			USING(upload_id)
 			WHERE i.archived IS NULL AND i.name ILIKE $1
-			GROUP BY i.item_id, i.name, i.description, i.features, i.price, i.type, i.stock_no`
+			GROUP BY i.item_id, i.name, i.description, i.features, i.price, i.type, i.stock_no
+			LIMIT $2
+			OFFSET $3`
 	var items []models.Item
-	err := db.Select(&items, SQL, search)
+	err := db.Select(&items, SQL, search, limit, offset)
 	return items, err
 }
