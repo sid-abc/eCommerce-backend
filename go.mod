@@ -3,7 +3,7 @@ module example/ecommerce
 go 1.20
 
 require (
-	github.com/aws/aws-sdk-go v1.44.300 // indirect
+	github.com/aws/aws-sdk-go v1.44.301 // indirect
 	github.com/gabriel-vasile/mimetype v1.4.2 // indirect
 	github.com/go-chi/chi v1.5.4 // indirect
 	github.com/go-playground/locales v0.14.1 // indirect

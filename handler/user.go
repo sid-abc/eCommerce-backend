@@ -443,8 +443,18 @@ func GetAllUsersHandler(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
+
+	userCount, err := dbHelper.GetUsersCount(database.Todo)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
 	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(users)
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"items":      users,
+		"totalItems": userCount,
+	})
 }
 
 // admin
@@ -499,14 +509,14 @@ func DeleteAccountHandler(w http.ResponseWriter, r *http.Request) {
 	err = dbHelper.DeleteUser(tx, userId)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
-		_ = tx.Rollback()
+		tx.Rollback()
 		return
 	}
 
 	err = dbHelper.DeleteUserRole(tx, userId)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
-		_ = tx.Rollback()
+		tx.Rollback()
 		return
 	}
 
@@ -543,8 +553,17 @@ func GetAllItemsHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	itemCount, err := dbHelper.GetItemsCount(database.Todo)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
 	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(items)
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"items":      items,
+		"totalItems": itemCount,
+	})
 }
 
 func AddUserRoleHandler(w http.ResponseWriter, r *http.Request) {

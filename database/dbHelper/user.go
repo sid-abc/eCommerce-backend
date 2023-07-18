@@ -245,3 +245,51 @@ func GetAllItems(db *sqlx.DB, name string, limit, offset int) ([]models.Item, er
 	err := db.Select(&items, SQL, search, limit, offset)
 	return items, err
 }
+
+func GetUsersCount(db *sqlx.DB) (int, error) {
+	SQL := `SELECT COUNT(*)
+            FROM users`
+	var count int
+	err := db.Get(&count, SQL)
+	return count, err
+}
+
+func GetItemsCount(db *sqlx.DB) (int, error) {
+	SQL := `SELECT COUNT(*)
+            FROM items`
+	var count int
+	err := db.Get(&count, SQL)
+	return count, err
+}
+
+func GetEmailNumber(db *sqlx.DB, userId uuid.UUID) (string, int, error) {
+	SQL := `SELECT email, number
+			FROM users
+			WHERE user_id = $1`
+	var (
+		email  string
+		number int
+	)
+	err := db.QueryRowx(SQL, userId).Scan(&email, &number)
+	return email, number, err
+}
+
+func GetOtpNumber(db *sqlx.DB, email string, phone int) (int, error) {
+	SQL := `SELECT otp_number
+			FROM otp
+			WHERE email = $1 AND email = $2 AND expires_at > NOW()
+			LIMIT 1`
+	var otpNumber int
+	err := db.Get(&otpNumber, SQL, email, phone)
+	return otpNumber, err
+}
+
+func InsertInOtp(db *sqlx.DB, email string, phoneNumber, otp_number int) error {
+	SQL := `INSERT INTO otp
+            (email, phone, otp_number, created_at, expires_at)
+            VALUES ($1, $2, $3, $4, $5)`
+	currentTime := time.Now()
+	fiveMinsLater := currentTime.Add(5 * time.Minute)
+	_, err := db.Exec(SQL, email, phoneNumber, otp_number, currentTime, fiveMinsLater)
+	return err
+}
