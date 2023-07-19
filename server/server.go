@@ -20,6 +20,8 @@ func SetUpRoutes() *chi.Mux {
 		r.Route("/user", func(r chi.Router) {
 			r.Use(middlewares.MiddlewareUser)
 			r.Delete("/delete-account", handler.DeleteAccountHandler)
+			r.Put("/verify-email", handler.SendVerificationEmailHandler)
+			r.Put("/verify-otp", handler.VerifyOtpHandler)
 			r.Route("/items", func(r chi.Router) {
 				r.Get("/{itemId}", handler.GetItemByIdHandler)
 				r.Post("/{itemId}/add-to-cart", handler.AddToCartHandler)
@@ -27,6 +29,10 @@ func SetUpRoutes() *chi.Mux {
 			r.Route("/cart", func(r chi.Router) {
 				r.Get("/{cartId}/all-items", handler.GetAllCartItemsHandler)
 				r.Delete("/{cartId}/items/{itemId}", handler.DeleteFromCartHandler)
+				r.Group(func(r chi.Router) {
+					r.Use(middlewares.VerificationMiddleware)
+					r.Put("/checkout", handler.CheckoutHandler)
+				})
 			})
 		})
 

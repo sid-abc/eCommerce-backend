@@ -600,3 +600,9 @@ func AddUserRoleHandler(w http.ResponseWriter, r *http.Request) {
 
 	w.WriteHeader(http.StatusCreated)
 }
+
+func CheckoutHandler(w http.ResponseWriter, r *http.Request) {
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"message": "Checkout Success",
+	})
+}

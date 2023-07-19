@@ -19,7 +19,7 @@ type Users struct {
 	Name        string    `json:"name" db:"name" validate:"required"`
 	Email       string    `json:"email" db:"email" validate:"required,email"`
 	Password    string    `json:"password" db:"password" validate:"required,min=6"`
-	PhoneNumber int       `json:"phoneNumber" db:"phone_number" validate:"required"`
+	PhoneNumber string    `json:"phoneNumber" db:"phone_number" validate:"required"`
 	Address     string    `json:"address" db:"address" validate:"required"`
 	ZipCode     int       `json:"zipCode" db:"zip_code" validate:"required"`
 	Country     string    `json:"country" db:"country" validate:"required"`
@@ -87,6 +87,10 @@ type Upload struct {
 type Claims struct {
 	UserID uuid.UUID `json:"userID"`
 	jwt.StandardClaims
+}
+
+type Otp struct {
+	OtpNumber string `json:"otpNumber"`
 }
 
 //r.HandleFunc("/users/cart/{cartId}/products/{itemId}/", handler.GetAllRestaurantsHandler).Methods("GET")

@@ -262,34 +262,52 @@ func GetItemsCount(db *sqlx.DB) (int, error) {
 	return count, err
 }
 
-func GetEmailNumber(db *sqlx.DB, userId uuid.UUID) (string, int, error) {
+func GetEmailNumber(db *sqlx.DB, userId uuid.UUID) (string, string, error) {
 	SQL := `SELECT email, number
 			FROM users
 			WHERE user_id = $1`
 	var (
 		email  string
-		number int
+		number string
 	)
 	err := db.QueryRowx(SQL, userId).Scan(&email, &number)
 	return email, number, err
 }
 
-func GetOtpNumber(db *sqlx.DB, email string, phone int) (int, error) {
+func GetOtpNumber(db *sqlx.DB, email string, phone string) (string, error) {
 	SQL := `SELECT otp_number
 			FROM otp
-			WHERE email = $1 AND email = $2 AND expires_at > NOW()
+			WHERE email = $1 AND phone = $2 AND expires_at > NOW()
+			ORDER BY created_at DESC
 			LIMIT 1`
-	var otpNumber int
+	var otpNumber string
 	err := db.Get(&otpNumber, SQL, email, phone)
 	return otpNumber, err
 }
 
-func InsertInOtp(db *sqlx.DB, email string, phoneNumber, otp_number int) error {
+func InsertInOtp(tx *sqlx.Tx, email string, phoneNumber string, otpNumber string) error {
 	SQL := `INSERT INTO otp
             (email, phone, otp_number, created_at, expires_at)
             VALUES ($1, $2, $3, $4, $5)`
 	currentTime := time.Now()
-	fiveMinsLater := currentTime.Add(5 * time.Minute)
-	_, err := db.Exec(SQL, email, phoneNumber, otp_number, currentTime, fiveMinsLater)
+	fiveMinsLater := currentTime.Add(15 * time.Minute)
+	_, err := tx.Exec(SQL, email, phoneNumber, otpNumber, currentTime, fiveMinsLater)
 	return err
+}
+
+func UpdateVerification(db *sqlx.DB, userId uuid.UUID) error {
+	SQL := `UPDATE users
+            SET is_verified = $1
+            WHERE user_id = $2`
+	_, err := db.Exec(SQL, time.Now(), userId)
+	return err
+}
+
+func IsVerified(db *sqlx.DB, userId uuid.UUID) (bool, error) {
+	SQL := `SELECT COUNT(*) > 0
+            FROM users
+            WHERE user_id = $1 AND is_verified IS NOT NULL `
+	var isVerified bool
+	err := db.Get(&isVerified, SQL, userId)
+	return isVerified, err
 }

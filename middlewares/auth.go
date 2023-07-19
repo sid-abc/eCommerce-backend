@@ -22,7 +22,7 @@ func JWTMiddleware(next http.Handler) http.Handler {
 			w.WriteHeader(http.StatusUnauthorized)
 			return
 		}
-		ctx := context.WithValue(r.Context(), "cSlaims", token.Claims.(*models.Claims))
+		ctx := context.WithValue(r.Context(), "claims", token.Claims.(*models.Claims))
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})
 }

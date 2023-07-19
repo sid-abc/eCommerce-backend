@@ -1,45 +1,60 @@
 package handler
 
 import (
+	"crypto/rand"
+	"database/sql"
+	"encoding/json"
+	"example/ecommerce/database"
+	"example/ecommerce/database/dbHelper"
+	"example/ecommerce/models"
+	"example/ecommerce/utils"
 	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/ses"
+	"math/big"
 	"net/http"
 	"os"
 )
 
 const (
-	// Replace sender@example.com with your "From" address.
-	// This address must be verified with Amazon SES.
-	Sender = "siddhant.nigam@outlook.com"
-
-	// Replace recipient@example.com with a "To" address. If your account
-	// is still in the sandbox, this address must be verified.
-	Recipient = "nigam.siddhan123@gmail.com"
-
-	// Specify a configuration set. To use a configuration
-	// set, comment the next line and line 92.
-	//ConfigurationSet = "ConfigSet"
-
-	// The subject line for the email.
-	Subject = "Email Verification"
-
-	// The HTML body for the email.
-	HtmlBody = "<h1>Amazon SES Test Email (AWS SDK for Go)</h1><p>This email was sent with " +
-		"<a href='https://aws.amazon.com/ses/'>Amazon SES</a> using the " +
-		"<a href='https://aws.amazon.com/sdk-for-go/'>AWS SDK for Go</a>.</p>"
-
-	//The email body for recipients with non-HTML email clients.
-	TextBody = "This email was sent with Amazon SES using the AWS SDK for Go."
-
-	// The character encoding for the email.
-	CharSet = "UTF-8"
+	otpLength = 6
 )
 
-func VerificationEmailHandler(w http.ResponseWriter, r *http.Request) {
-	sess, err := session.NewSession(&aws.Config{
-		Region: aws.String(os.Getenv("Region"))},
-	)
+func GenerateOTP() (string, error) {
+	charSet := "0123456789"
+
+	otpBytes := make([]byte, otpLength)
+
+	for i := 0; i < otpLength; i++ {
+		randomIndex, err := rand.Int(rand.Reader, big.NewInt(int64(len(charSet))))
+		if err != nil {
+			return "", err
+		}
+		otpBytes[i] = charSet[randomIndex.Int64()]
+	}
+
+	otp := string(otpBytes)
+
+	return otp, nil
+}
+
+func SendVerificationEmail(otpNumber, email string) error {
+	sender := "siddhant.nigam@outlook.com"
+	recipient := email
+	subject := "Email Verification"
+	htmlBody := "<h1>Amazon SES Test Email (AWS SDK for Go)</h1><p>This email was sent with " +
+		"<a href='https://aws.amazon.com/ses/'>Amazon SES</a> using the " +
+		"<a href='https://aws.amazon.com/sdk-for-go/'>AWS SDK for Go</a>. Your OTP is " + otpNumber + "</p>"
+	textBody := "eghfnehf;hghlnf"
+	charSet := "UTF-8"
+
+	awsConfig := utils.AWSConfig{
+		AccessKeyID:     os.Getenv("AccessKeyID"),
+		AccessKeySecret: os.Getenv("AccessKeySecret"),
+		Region:          os.Getenv("Region"),
+	}
+
+	// creating aws session
+	sess := utils.CreateSession(awsConfig)
 
 	svc := ses.New(sess)
 
@@ -47,32 +62,128 @@ func VerificationEmailHandler(w http.ResponseWriter, r *http.Request) {
 		Destination: &ses.Destination{
 			CcAddresses: []*string{},
 			ToAddresses: []*string{
-				aws.String(Recipient),
+				aws.String(recipient),
 			},
 		},
 		Message: &ses.Message{
 			Body: &ses.Body{
 				Html: &ses.Content{
-					Charset: aws.String(CharSet),
-					Data:    aws.String(HtmlBody),
+					Charset: aws.String(charSet),
+					Data:    aws.String(htmlBody),
 				},
 				Text: &ses.Content{
-					Charset: aws.String(CharSet),
-					Data:    aws.String(TextBody),
+					Charset: aws.String(charSet),
+					Data:    aws.String(textBody),
 				},
 			},
 			Subject: &ses.Content{
-				Charset: aws.String(CharSet),
-				Data:    aws.String(Subject),
+				Charset: aws.String(charSet),
+				Data:    aws.String(subject),
 			},
 		},
-		Source: aws.String(Sender),
+		Source: aws.String(sender),
 		// Uncomment to use a configuration set
 		//ConfigurationSetName: aws.String(ConfigurationSet),
 	}
 
-	_, err = svc.SendEmail(input)
+	_, err := svc.SendEmail(input)
+	return err
+}
 
+func SendVerificationEmailHandler(w http.ResponseWriter, r *http.Request) {
+	claims := r.Context().Value("claims").(*models.Claims)
+	userId := claims.UserID
+
+	isVerified, err := dbHelper.IsVerified(database.Todo, userId)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	if isVerified {
+		w.WriteHeader(http.StatusConflict)
+		return
+	}
+
+	otpNumber, err := GenerateOTP()
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	email, number, err := dbHelper.GetEmailNumber(database.Todo, userId)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			w.WriteHeader(http.StatusBadRequest)
+		} else {
+			w.WriteHeader(http.StatusInternalServerError)
+		}
+		return
+	}
+
+	tx, err := database.Todo.Beginx()
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	err = dbHelper.InsertInOtp(tx, email, number, otpNumber)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		tx.Rollback()
+		return
+	}
+
+	err = SendVerificationEmail(otpNumber, email)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	err = tx.Commit()
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+}
+
+func VerifyOtpHandler(w http.ResponseWriter, r *http.Request) {
+	var userOtp models.Otp
+	err := json.NewDecoder(r.Body).Decode(&userOtp)
+	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+
+	claims := r.Context().Value("claims").(*models.Claims)
+	userId := claims.UserID
+
+	email, number, err := dbHelper.GetEmailNumber(database.Todo, userId)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			w.WriteHeader(http.StatusBadRequest)
+		} else {
+			w.WriteHeader(http.StatusInternalServerError)
+		}
+		return
+	}
+
+	databaseOtp, err := dbHelper.GetOtpNumber(database.Todo, email, number)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			w.WriteHeader(http.StatusUnauthorized)
+		} else {
+			w.WriteHeader(http.StatusInternalServerError)
+		}
+		return
+	}
+
+	if databaseOtp != userOtp.OtpNumber {
+		w.WriteHeader(http.StatusUnauthorized)
+		return
+	}
+
+	err = dbHelper.UpdateVerification(database.Todo, userId)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		return
