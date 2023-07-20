@@ -21,6 +21,7 @@ func SetUpRoutes() *chi.Mux {
 			r.Use(middlewares.MiddlewareUser)
 			r.Delete("/delete-account", handler.DeleteAccountHandler)
 			r.Put("/verify-email", handler.SendVerificationEmailHandler)
+			r.Put("/verify-sms", handler.SendVerificationSmsHandler)
 			r.Put("/verify-otp", handler.VerifyOtpHandler)
 			r.Route("/items", func(r chi.Router) {
 				r.Get("/{itemId}", handler.GetItemByIdHandler)

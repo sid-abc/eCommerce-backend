@@ -120,7 +120,7 @@ func LoginHandler(w http.ResponseWriter, r *http.Request) {
 		},
 	}
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
-	tokenString, err := token.SignedString([]byte("secret"))
+	tokenString, err := token.SignedString([]byte(os.Getenv("JWTsecret")))
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		return
@@ -257,7 +257,9 @@ func GetAllCartItemsHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(cartItems)
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"cartItems": cartItems,
+	})
 }
 
 func GetAllItemsByTypeHandler(w http.ResponseWriter, r *http.Request) {
@@ -272,7 +274,9 @@ func GetAllItemsByTypeHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(items)
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"items": items,
+	})
 }
 
 func GetItemByIdHandler(w http.ResponseWriter, r *http.Request) {
@@ -311,20 +315,20 @@ func DeleteItemHandler(w http.ResponseWriter, r *http.Request) {
 	err = dbHelper.DeleteItem(tx, itemId)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
-		_ = tx.Rollback()
+		tx.Rollback()
 		return
 	}
 	err = dbHelper.DeleteItemFromAllCarts(tx, itemId)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
-		_ = tx.Rollback()
+		tx.Rollback()
 		return
 	}
 
 	err = dbHelper.DeleteFromImage(tx, itemId)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
-		_ = tx.Rollback()
+		tx.Rollback()
 		return
 	}
 

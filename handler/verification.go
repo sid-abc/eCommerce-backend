@@ -10,6 +10,8 @@ import (
 	"example/ecommerce/utils"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/ses"
+	"github.com/twilio/twilio-go"
+	"github.com/twilio/twilio-go/rest/api/v2010"
 	"math/big"
 	"net/http"
 	"os"
@@ -145,6 +147,74 @@ func SendVerificationEmailHandler(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
+
+	w.WriteHeader(http.StatusOK)
+}
+
+func SendVerificationSmsHandler(w http.ResponseWriter, r *http.Request) {
+	claims := r.Context().Value("claims").(*models.Claims)
+	userId := claims.UserID
+
+	isVerified, err := dbHelper.IsVerified(database.Todo, userId)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	if isVerified {
+		w.WriteHeader(http.StatusConflict)
+		return
+	}
+
+	otpNumber, err := GenerateOTP()
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	email, number, err := dbHelper.GetEmailNumber(database.Todo, userId)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			w.WriteHeader(http.StatusBadRequest)
+		} else {
+			w.WriteHeader(http.StatusInternalServerError)
+		}
+		return
+	}
+
+	client := twilio.NewRestClient()
+	params := &openapi.CreateMessageParams{}
+	params.SetTo("+91" + number)
+	params.SetFrom(os.Getenv("TWILIO_PHONE_NUMBER"))
+	params.SetBody("Your OTP is " + otpNumber)
+
+	tx, err := database.Todo.Beginx()
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	err = dbHelper.InsertInOtp(tx, email, number, otpNumber)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		tx.Rollback()
+		return
+	}
+
+	_, err = client.Api.CreateMessage(params)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		tx.Rollback()
+		return
+	}
+
+	err = tx.Commit()
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
 }
 
 func VerifyOtpHandler(w http.ResponseWriter, r *http.Request) {

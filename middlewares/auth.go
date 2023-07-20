@@ -5,6 +5,7 @@ import (
 	"example/ecommerce/models"
 	"github.com/golang-jwt/jwt"
 	"net/http"
+	"os"
 )
 
 func JWTMiddleware(next http.Handler) http.Handler {
@@ -16,7 +17,7 @@ func JWTMiddleware(next http.Handler) http.Handler {
 		}
 
 		token, err := jwt.ParseWithClaims(tokenString, &models.Claims{}, func(token *jwt.Token) (interface{}, error) {
-			return []byte("secret"), nil
+			return []byte(os.Getenv("JWTsecret")), nil
 		})
 		if err != nil || !token.Valid {
 			w.WriteHeader(http.StatusUnauthorized)
