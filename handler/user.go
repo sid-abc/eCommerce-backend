@@ -268,14 +268,33 @@ func GetAllItemsByTypeHandler(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
-	items, err := dbHelper.GetAllItemsByType(database.Todo, itemType)
+
+	pageNumber, _ := strconv.Atoi(r.URL.Query().Get("page"))
+	pageSize, _ := strconv.Atoi(r.URL.Query().Get("size"))
+
+	if pageNumber <= 0 {
+		pageNumber = 1
+	}
+	if pageSize <= 0 {
+		pageSize = 10
+	}
+
+	offset := (pageNumber - 1) * pageSize
+
+	items, err := dbHelper.GetAllItemsByType(database.Todo, itemType, pageSize, offset)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+	itemCount, err := dbHelper.GetItemsByTypeCount(database.Todo, itemType)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(map[string]interface{}{
-		"items": items,
+		"items":     items,
+		"itemCount": itemCount,
 	})
 }
 

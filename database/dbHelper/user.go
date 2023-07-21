@@ -129,17 +129,28 @@ func GetAllCartItems(db *sqlx.DB, cartId uuid.UUID) ([]models.CartItemDisplay, e
 	return items, err
 }
 
-func GetAllItemsByType(db *sqlx.DB, typee string) ([]models.Item, error) {
+func GetAllItemsByType(db *sqlx.DB, typee string, limit, offset int) ([]models.Item, error) {
 	SQL := `SELECT i.item_id, i.name, i.description, i.features, i.price, i.type, i.stock_no, array_agg(u.url) AS photos
 			FROM items i LEFT JOIN images p
 			USING(item_id)
 			LEFT JOIN uploads u 
 			USING(upload_id)
 			WHERE i.type = $1 AND i.archived IS NULL
-			GROUP BY i.item_id, i.name, i.description, i.features, i.price, i.type, i.stock_no`
+			GROUP BY i.item_id, i.name, i.description, i.features, i.price, i.type, i.stock_no
+			LIMIT $2
+			OFFSET $3`
 	var items []models.Item
-	err := db.Select(&items, SQL, typee)
+	err := db.Select(&items, SQL, typee, limit, offset)
 	return items, err
+}
+
+func GetItemsByTypeCount(db *sqlx.DB, typee string) (int, error) {
+	SQL := `SELECT COUNT(*)
+            FROM items
+            WHERE type = $1`
+	var count int
+	err := db.Get(&count, SQL, typee)
+	return count, err
 }
 
 func GetUserRoles(db *sqlx.DB, userID uuid.UUID) ([]string, error) {
