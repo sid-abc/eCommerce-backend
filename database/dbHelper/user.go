@@ -10,7 +10,7 @@ import (
 func CreateUser(tx *sqlx.Tx, user models.Users) (uuid.UUID, error) {
 	SQL := `INSERT INTO users
             (name, email, password, number, address, zip_code, country)
-            VALUES ($1, $2, $3, $4, $5, $6, $7)
+            VALUES ($1, TRIM(LOWER($2)), $3, $4, $5, $6, $7)
             RETURNING user_id`
 	var userId uuid.UUID
 	err := tx.QueryRowx(SQL, user.Name, user.Email, user.Password, user.PhoneNumber, user.Address, user.ZipCode, user.Country).Scan(&userId)
@@ -32,7 +32,7 @@ func CreateUserRole(tx *sqlx.Tx, db *sqlx.DB, userId uuid.UUID, role string) err
 
 func CheckEmail(db *sqlx.DB, email string) (bool, error) {
 	SQL := `SELECT count(*) > 0 FROM users
-            WHERE email = $1`
+            WHERE email = TRIM(LOWER($1))`
 
 	var isEmailExists bool
 	err := db.Get(&isEmailExists, SQL, email)
@@ -42,7 +42,7 @@ func CheckEmail(db *sqlx.DB, email string) (bool, error) {
 func GetIdPassword(db *sqlx.DB, email string) (uuid.UUID, string, error) {
 	SQL := `SELECT user_id, password
             FROM users
-            WHERE email = $1`
+            WHERE email = TRIM(LOWER($1))`
 	var emailDatabase string
 	var userId uuid.UUID
 	err := db.QueryRowx(SQL, email).Scan(&userId, &emailDatabase)
@@ -259,7 +259,8 @@ func GetAllItems(db *sqlx.DB, name string, limit, offset int) ([]models.Item, er
 
 func GetUsersCount(db *sqlx.DB) (int, error) {
 	SQL := `SELECT COUNT(*)
-            FROM users`
+            FROM users
+            WHERE archived IS NULL`
 	var count int
 	err := db.Get(&count, SQL)
 	return count, err
@@ -267,7 +268,8 @@ func GetUsersCount(db *sqlx.DB) (int, error) {
 
 func GetItemsCount(db *sqlx.DB) (int, error) {
 	SQL := `SELECT COUNT(*)
-            FROM items`
+            FROM items
+            WHERE archived IS NULL`
 	var count int
 	err := db.Get(&count, SQL)
 	return count, err
@@ -285,30 +287,38 @@ func GetEmailNumber(db *sqlx.DB, userId uuid.UUID) (string, string, error) {
 	return email, number, err
 }
 
-func GetOtpNumber(db *sqlx.DB, email string, phone string) (string, error) {
+func GetOtpNumber(db *sqlx.DB, userId uuid.UUID, typee string) (string, error) {
 	SQL := `SELECT otp_number
 			FROM otp
-			WHERE email = $1 AND phone = $2 AND expires_at > NOW()
+			WHERE user_id = $1 AND typee = $2 AND expires_at > NOW()
 			ORDER BY created_at DESC
 			LIMIT 1`
 	var otpNumber string
-	err := db.Get(&otpNumber, SQL, email, phone)
+	err := db.Get(&otpNumber, SQL, userId, typee)
 	return otpNumber, err
 }
 
-func InsertInOtp(tx *sqlx.Tx, email string, phoneNumber string, otpNumber string) error {
+func InsertInOtp(tx *sqlx.Tx, userId uuid.UUID, typee string, otpNumber string) error {
 	SQL := `INSERT INTO otp
-            (email, phone, otp_number, created_at, expires_at)
+            (user_id, typee, otp_number, created_at, expires_at)
             VALUES ($1, $2, $3, $4, $5)`
 	currentTime := time.Now()
 	fiveMinsLater := currentTime.Add(15 * time.Minute)
-	_, err := tx.Exec(SQL, email, phoneNumber, otpNumber, currentTime, fiveMinsLater)
+	_, err := tx.Exec(SQL, userId, typee, otpNumber, currentTime, fiveMinsLater)
 	return err
 }
 
-func UpdateVerification(db *sqlx.DB, userId uuid.UUID) error {
+func UpdateEmailVerification(db *sqlx.DB, userId uuid.UUID) error {
 	SQL := `UPDATE users
-            SET is_verified = $1
+            SET email_verified = $1
+            WHERE user_id = $2`
+	_, err := db.Exec(SQL, time.Now(), userId)
+	return err
+}
+
+func UpdatePhoneVerification(db *sqlx.DB, userId uuid.UUID) error {
+	SQL := `UPDATE users
+            SET phone_verified = $1
             WHERE user_id = $2`
 	_, err := db.Exec(SQL, time.Now(), userId)
 	return err
@@ -317,8 +327,25 @@ func UpdateVerification(db *sqlx.DB, userId uuid.UUID) error {
 func IsVerified(db *sqlx.DB, userId uuid.UUID) (bool, error) {
 	SQL := `SELECT COUNT(*) > 0
             FROM users
-            WHERE user_id = $1 AND is_verified IS NOT NULL `
+            WHERE user_id = $1 AND email_verified IS NOT NULL AND phone_verified IS NOT NULL`
 	var isVerified bool
 	err := db.Get(&isVerified, SQL, userId)
 	return isVerified, err
+}
+
+func GetUserDetails(db *sqlx.DB, userId uuid.UUID) (models.Users, error) {
+	SQL := `SELECT name, email, number AS "phone_number", address, zip_code, country, email_verified, phone_verified
+			FROM users
+			WHERE user_id = $1`
+	var user models.Users
+	err := db.Get(&user, SQL, userId)
+	return user, err
+}
+
+func MakeOtpInvalid(tx *sqlx.Tx, userId uuid.UUID, typee string) error {
+	SQL := `UPDATE otp
+			SET expires_at = $1
+			WHERE user_id = $2 AND typee = $3`
+	_, err := tx.Exec(SQL, time.Now(), userId, typee)
+	return err
 }

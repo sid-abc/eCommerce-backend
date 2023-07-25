@@ -13,7 +13,9 @@ import (
 	"github.com/twilio/twilio-go"
 	"github.com/twilio/twilio-go/rest/api/v2010"
 	"math/big"
+
 	"net/http"
+
 	"os"
 )
 
@@ -113,7 +115,7 @@ func SendVerificationEmailHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	email, number, err := dbHelper.GetEmailNumber(database.Todo, userId)
+	email, _, err := dbHelper.GetEmailNumber(database.Todo, userId)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			w.WriteHeader(http.StatusBadRequest)
@@ -129,7 +131,14 @@ func SendVerificationEmailHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err = dbHelper.InsertInOtp(tx, email, number, otpNumber)
+	err = dbHelper.MakeOtpInvalid(tx, userId, models.OtpType1)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		tx.Rollback()
+		return
+	}
+
+	err = dbHelper.InsertInOtp(tx, userId, models.OtpType1, otpNumber)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		tx.Rollback()
@@ -172,7 +181,7 @@ func SendVerificationSmsHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	email, number, err := dbHelper.GetEmailNumber(database.Todo, userId)
+	_, number, err := dbHelper.GetEmailNumber(database.Todo, userId)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			w.WriteHeader(http.StatusBadRequest)
@@ -194,7 +203,14 @@ func SendVerificationSmsHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err = dbHelper.InsertInOtp(tx, email, number, otpNumber)
+	err = dbHelper.MakeOtpInvalid(tx, userId, models.OtpType2)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		tx.Rollback()
+		return
+	}
+
+	err = dbHelper.InsertInOtp(tx, userId, models.OtpType2, otpNumber)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		tx.Rollback()
@@ -225,20 +241,15 @@ func VerifyOtpHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	claims := r.Context().Value("claims").(*models.Claims)
-	userId := claims.UserID
-
-	email, number, err := dbHelper.GetEmailNumber(database.Todo, userId)
-	if err != nil {
-		if err == sql.ErrNoRows {
-			w.WriteHeader(http.StatusBadRequest)
-		} else {
-			w.WriteHeader(http.StatusInternalServerError)
-		}
+	if userOtp.Type != models.OtpType1 && userOtp.Type != models.OtpType2 {
+		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
 
-	databaseOtp, err := dbHelper.GetOtpNumber(database.Todo, email, number)
+	claims := r.Context().Value("claims").(*models.Claims)
+	userId := claims.UserID
+
+	databaseOtp, err := dbHelper.GetOtpNumber(database.Todo, userId, userOtp.Type)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			w.WriteHeader(http.StatusUnauthorized)
@@ -253,10 +264,18 @@ func VerifyOtpHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err = dbHelper.UpdateVerification(database.Todo, userId)
-	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		return
+	if userOtp.Type == models.OtpType1 {
+		err = dbHelper.UpdateEmailVerification(database.Todo, userId)
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+	} else {
+		err = dbHelper.UpdatePhoneVerification(database.Todo, userId)
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
 	}
 
 	w.WriteHeader(http.StatusOK)

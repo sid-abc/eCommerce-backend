@@ -12,6 +12,8 @@ const (
 	Type1 = "headphone"
 	Type2 = "speaker"
 	Type3 = "earphone"
+	OtpType1 = "email"
+	OtpType2 = "phone"
 )
 
 type Users struct {
@@ -23,6 +25,8 @@ type Users struct {
 	Address     string    `json:"address" db:"address" validate:"required"`
 	ZipCode     int       `json:"zipCode" db:"zip_code" validate:"required"`
 	Country     string    `json:"country" db:"country" validate:"required"`
+	EmailVerified *time.Time  `db:"email_verified"`
+	PhoneVerified *time.Time  `db:"phone_verified"`
 	Archived    time.Time `db:"archived"`
 	RoleUser    string    `db:"role_user"`
 }
@@ -91,6 +95,7 @@ type Claims struct {
 
 type Otp struct {
 	OtpNumber string `json:"otpNumber"`
+	Type string `json:"type"`
 }
 
 //r.HandleFunc("/users/cart/{cartId}/products/{itemId}/", handler.GetAllRestaurantsHandler).Methods("GET")

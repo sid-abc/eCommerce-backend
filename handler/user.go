@@ -87,6 +87,22 @@ func RegisterHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	claims := &models.Claims{
+		UserID: userId,
+		StandardClaims: jwt.StandardClaims{
+			ExpiresAt: time.Now().Add(time.Hour * 24).Unix(),
+		},
+	}
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+	tokenString, err := token.SignedString([]byte(os.Getenv("JWTsecret")))
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"token": tokenString,
+	})
+
 	w.WriteHeader(http.StatusCreated)
 }
 
@@ -622,6 +638,24 @@ func AddUserRoleHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.WriteHeader(http.StatusCreated)
+}
+
+func GetUserDetailsHandler(w http.ResponseWriter, r *http.Request) {
+	claims := r.Context().Value("claims").(*models.Claims)
+	userId := claims.UserID
+
+	user, err := dbHelper.GetUserDetails(database.Todo, userId)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			w.WriteHeader(http.StatusBadRequest)
+		} else {
+			w.WriteHeader(http.StatusInternalServerError)
+		}
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(user)
 }
 
 func CheckoutHandler(w http.ResponseWriter, r *http.Request) {
