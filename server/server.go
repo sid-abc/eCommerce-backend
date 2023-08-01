@@ -33,6 +33,7 @@ func SetUpRoutes() *chi.Mux {
 				r.Route("/cart", func(r chi.Router) {
 					r.Get("/{cartId}/all-items", handler.GetAllCartItemsHandler)
 					r.Delete("/{cartId}/items/{itemId}", handler.DeleteFromCartHandler)
+					r.Post("/checkout", handler.CheckoutHandler)
 				})
 			})
 		})
@@ -42,6 +43,7 @@ func SetUpRoutes() *chi.Mux {
 
 			r.Get("/all-users", handler.GetAllUsersHandler)
 			r.Route("/users", func(r chi.Router) {
+				r.Get("/{userId}", handler.GetUserDetailsHandler)
 				r.Delete("/{userId}", handler.DeleteUserByAdminHandler)
 				r.Put("/{userId}/add-role", handler.AddUserRoleHandler)
 			})

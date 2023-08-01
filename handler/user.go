@@ -514,14 +514,14 @@ func DeleteUserByAdminHandler(w http.ResponseWriter, r *http.Request) {
 	err = dbHelper.DeleteUser(tx, userId)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
-		_ = tx.Rollback()
+		tx.Rollback()
 		return
 	}
 
 	err = dbHelper.DeleteUserRole(tx, userId)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
-		_ = tx.Rollback()
+		tx.Rollback()
 		return
 	}
 

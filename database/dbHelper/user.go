@@ -32,7 +32,7 @@ func CreateUserRole(tx *sqlx.Tx, db *sqlx.DB, userId uuid.UUID, role string) err
 
 func CheckEmail(db *sqlx.DB, email string) (bool, error) {
 	SQL := `SELECT count(*) > 0 FROM users
-            WHERE email = TRIM(LOWER($1))`
+            WHERE email = TRIM(LOWER($1)) AND archived IS NULL`
 
 	var isEmailExists bool
 	err := db.Get(&isEmailExists, SQL, email)
